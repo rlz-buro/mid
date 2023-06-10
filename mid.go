@@ -47,8 +47,8 @@ type Header struct {
 	MessagePartNumber int `mid:"20"`
 }
 
-func Marshal(v MID) ([]byte, error) {
-	header, err := marshal(&v.Header)
+func MarshalMID(v MID) ([]byte, error) {
+	header, err := Marshal(&v.Header)
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +56,14 @@ func Marshal(v MID) ([]byte, error) {
 	return append(header, data...), nil
 }
 
-func marshal(v any) ([]byte, error) {
+func Marshal(v any) ([]byte, error) {
 	raw := []byte{}
 	rv := reflect.ValueOf(v).Elem()
 	rt := reflect.TypeOf(v).Elem()
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
 		tag := field.Tag.Get(midTagName)
-		s, e, err := parseTag(tag, 1, 20)
+		s, e, err := parseTag(tag)
 		if err != nil {
 			return nil, fmt.Errorf("invalid mid tag: %w", err)
 		}
@@ -88,11 +88,11 @@ func marshal(v any) ([]byte, error) {
 	return raw, nil
 }
 
-func Unmarshal(data []byte, v *MID) error {
+func UnmarshalMID(data []byte, v *MID) error {
 	if l := len(data); l < 20 {
 		return fmt.Errorf("invalid header: header size should be 20 bytes but actual header has only %d", l)
 	}
-	if err := unmarshal(data, &v.Header, 1, 20); err != nil {
+	if err := Unmarshal(data, &v.Header); err != nil {
 		return err
 	}
 	if len(data) > 20 {
@@ -101,15 +101,18 @@ func Unmarshal(data []byte, v *MID) error {
 	return nil
 }
 
-func unmarshal(data []byte, v any, min, max int) error {
+func Unmarshal(data []byte, v any) error {
 	rv := reflect.ValueOf(v).Elem()
 	rt := reflect.TypeOf(v).Elem()
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
 		tag := field.Tag.Get(midTagName)
-		s, e, err := parseTag(tag, 1, 20)
+		s, e, err := parseTag(tag)
 		if err != nil {
-			return fmt.Errorf("invalid mid tag: %w", err)
+			return fmt.Errorf("invalid mid tag %q: %w", tag, err)
+		}
+		if s < 1 || e > len(data)+1 {
+			return fmt.Errorf("mid values should be %d <= i <= %d: start - %d end - %d", 1, len(data)+1, s, e)
 		}
 		token := data[s-1 : e]
 		if string(token) == strings.Repeat(" ", len(token)) {
@@ -117,25 +120,27 @@ func unmarshal(data []byte, v any, min, max int) error {
 		}
 		switch field.Type.Kind() {
 		case reflect.Int:
-			val, err := strconv.Atoi(string(token))
+			val, err := strconv.Atoi(strings.TrimSpace(string(token)))
 			if err != nil {
-				return fmt.Errorf("invalid header: %w", err)
+				return fmt.Errorf("invalid data token %q: %w", string(token), err)
 			}
 			rv.Field(i).SetInt(int64(val))
 		case reflect.Bool:
 			val, err := strconv.Atoi(string(token))
 			if err != nil {
-				return fmt.Errorf("invalid header: %w", err)
+				return fmt.Errorf("invalid data token %q: %w", string(token), err)
 			}
 			rv.Field(i).SetBool(val != 0)
 		case reflect.String:
 			rv.Field(i).SetString(string(token))
+		default:
+			return fmt.Errorf("%q type is not supported", field.Type.Kind().String())
 		}
 	}
 	return nil
 }
 
-func parseTag(tag string, min, max int) (int, int, error) {
+func parseTag(tag string) (int, int, error) {
 	var (
 		start int
 		end   int
@@ -160,9 +165,6 @@ func parseTag(tag string, min, max int) (int, int, error) {
 		}
 	default:
 		return 0, 0, fmt.Errorf("wrong mid tag format: %q", tag)
-	}
-	if start < min || end > max {
-		return 0, 0, fmt.Errorf("indexes should be %d <= i <= %d: start - %d end - %d", min, max, start, end)
 	}
 	return start, end, nil
 }
