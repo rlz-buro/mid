@@ -294,4 +294,5 @@ func (m *MID0004REV001) Error() string {
 	case 99:
 		return fmt.Sprintf("get error response on mid %d: Unknown MID", m.MIDNumber)
 	}
+	return ""
 }
