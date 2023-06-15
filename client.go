@@ -291,13 +291,21 @@ func (c *Client) read() {
 			}
 			switch string(data[4:8]) {
 			case "0052":
-				c.vinSub <- data
+				go func() {
+					c.vinSub <- data
+				}()
 			case "0061":
-				c.tighteningSub <- data
+				go func() {
+					c.tighteningSub <- data
+				}()
 			case "0101":
-				c.multiSpindelSub <- data
+				go func() {
+					c.multiSpindelSub <- data
+				}()
 			case "0106", "0107":
-				c.powerMACSTighteningSub <- data
+				go func() {
+					c.powerMACSTighteningSub <- data
+				}()
 			default:
 				c.feedback <- data
 			}
