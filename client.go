@@ -33,6 +33,10 @@ func NewClient(host string, port string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = conn.SetKeepAlive(true)
+	if err != nil {
+		return nil, err
+	}
 	cln := &Client{
 		conn:      conn,
 		feedback:  make(chan []byte),
