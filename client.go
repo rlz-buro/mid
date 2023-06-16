@@ -5,17 +5,23 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
+)
+
+const (
+	vinSub                     = "0052"
+	tighteningSub              = "0061"
+	multiSpindelSub            = "0101"
+	powerMACSTighteningSub     = "0106"
+	powerMACSTighteningBoltSub = "0107"
 )
 
 type Client struct {
-	conn                   net.Conn
-	feedback               chan []byte
-	vinSub                 chan []byte
-	tighteningSub          chan []byte
-	multiSpindelSub        chan []byte
-	powerMACSTighteningSub chan []byte
-	semaphore              chan struct{}
-	done                   chan struct{}
+	conn      net.Conn
+	feedback  chan []byte
+	chans     sync.Map
+	semaphore chan struct{}
+	done      chan struct{}
 }
 
 func NewClient(host string, port string) (*Client, error) {
@@ -30,6 +36,7 @@ func NewClient(host string, port string) (*Client, error) {
 	cln := &Client{
 		conn:      conn,
 		feedback:  make(chan []byte),
+		chans:     sync.Map{},
 		semaphore: make(chan struct{}, 1),
 		done:      make(chan struct{}),
 	}
@@ -83,7 +90,8 @@ func (c *Client) ApplicationCommunicationStop() error {
 }
 
 func (c *Client) VehicleIDNumberSubscribe() (chan []byte, error) {
-	c.vinSub = make(chan []byte)
+	ch := make(chan []byte)
+	c.chans.Store(vinSub, ch)
 	mid0051 := MID{
 		Header: Header{
 			Length:   20,
@@ -94,8 +102,7 @@ func (c *Client) VehicleIDNumberSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0051, standartHandler); err != nil {
 		return nil, err
 	}
-	c.vinSub = make(chan []byte)
-	return c.vinSub, nil
+	return ch, nil
 }
 
 func (c *Client) VehicleIDNumberAcknowledge() error {
@@ -124,7 +131,8 @@ func (c *Client) VehicleIDNumberUnsubscribe() error {
 }
 
 func (c *Client) LastTighteningResultDataSubscribe() (chan []byte, error) {
-	c.tighteningSub = make(chan []byte)
+	ch := make(chan []byte)
+	c.chans.Store(tighteningSub, ch)
 	mid0060 := MID{
 		Header: Header{
 			Length:   20,
@@ -135,7 +143,7 @@ func (c *Client) LastTighteningResultDataSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0060, standartHandler); err != nil {
 		return nil, err
 	}
-	return c.tighteningSub, nil
+	return ch, nil
 }
 
 func (c *Client) LastTighteningResultDataAcknowledge() error {
@@ -164,7 +172,8 @@ func (c *Client) LastTighteningResultDataUnsubscribe() error {
 }
 
 func (c *Client) MultiSpindleResultSubscribe() (chan []byte, error) {
-	c.multiSpindelSub = make(chan []byte)
+	ch := make(chan []byte)
+	c.chans.Store(multiSpindelSub, ch)
 	mid0100 := MID{
 		Header: Header{
 			Length:   20,
@@ -175,7 +184,7 @@ func (c *Client) MultiSpindleResultSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0100, standartHandler); err != nil {
 		return nil, err
 	}
-	return c.multiSpindelSub, nil
+	return ch, nil
 }
 
 func (c *Client) MultiSpindleResultAcknowledge() error {
@@ -204,7 +213,9 @@ func (c *Client) MultiSpindleResultUnsubscribe() error {
 }
 
 func (c *Client) LastPowerMACSTighteningResultDataSubscribe() (chan []byte, error) {
-	c.powerMACSTighteningSub = make(chan []byte)
+	ch := make(chan []byte)
+	c.chans.Store(powerMACSTighteningSub, ch)
+	c.chans.Store(powerMACSTighteningBoltSub, ch)
 	mid0105 := MID{
 		Header: Header{
 			Length:   20,
@@ -215,7 +226,7 @@ func (c *Client) LastPowerMACSTighteningResultDataSubscribe() (chan []byte, erro
 	if err := c.execCMD(mid0105, standartHandler); err != nil {
 		return nil, err
 	}
-	return c.powerMACSTighteningSub, nil
+	return ch, nil
 }
 
 func (c *Client) LastPowerMACSTighteningResultDataAcknowledge(withBoltData bool) error {
@@ -268,10 +279,15 @@ func (c *Client) KeepAliveMessage() error {
 
 func (c *Client) read() {
 	defer func() {
-		close(c.vinSub)
-		close(c.tighteningSub)
-		close(c.multiSpindelSub)
-		close(c.powerMACSTighteningSub)
+		c.chans.Range(func(key, value any) bool {
+			v, _ := c.chans.Load(key)
+			ch, ok := v.(chan []byte)
+			if ok {
+				close(ch)
+				c.chans.Delete(key)
+			}
+			return true
+		})
 		close(c.feedback)
 		c.conn.Close()
 	}()
@@ -289,22 +305,19 @@ func (c *Client) read() {
 			if len(data) < 20 {
 				return
 			}
-			switch string(data[4:8]) {
-			case "0052":
+			key := string(data[4:8])
+			switch key {
+			case vinSub,
+				tighteningSub,
+				multiSpindelSub,
+				powerMACSTighteningSub,
+				powerMACSTighteningBoltSub:
 				go func() {
-					c.vinSub <- data
-				}()
-			case "0061":
-				go func() {
-					c.tighteningSub <- data
-				}()
-			case "0101":
-				go func() {
-					c.multiSpindelSub <- data
-				}()
-			case "0106", "0107":
-				go func() {
-					c.powerMACSTighteningSub <- data
+					v, _ := c.chans.Load(key)
+					ch, ok := v.(chan []byte)
+					if ok {
+						ch <- data
+					}
 				}()
 			default:
 				c.feedback <- data
