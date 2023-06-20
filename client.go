@@ -3,9 +3,10 @@ package mid
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"net"
 	"sync"
+
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -23,9 +24,10 @@ type Client struct {
 	chans     sync.Map
 	semaphore chan struct{}
 	done      chan struct{}
+	logger    zerolog.Logger
 }
 
-func NewClient(host string, port string) (*Client, error) {
+func NewClient(host string, port string, logger zerolog.Logger) (*Client, error) {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
 		return nil, err
@@ -44,6 +46,7 @@ func NewClient(host string, port string) (*Client, error) {
 		chans:     sync.Map{},
 		semaphore: make(chan struct{}, 1),
 		done:      make(chan struct{}),
+		logger:    logger,
 	}
 	go cln.read()
 	return cln, nil
@@ -344,11 +347,12 @@ func (c *Client) read() {
 		default:
 			data, err := bufio.NewReader(c.conn).ReadBytes('\x00')
 			if err != nil {
-				log.Printf("ERROR: %v\n", err)
+				c.logger.Error().Err(err).Msg("Failed to read from connection")
 				return
 			}
-			log.Println("RECEIVE:", string(data))
+			c.logger.Info().Bytes("data", data).Msg("Receive mid message")
 			if len(data) < 20 {
+				c.logger.Error().Msg("Invalid mid header lenght")
 				return
 			}
 			go func(key string) {
@@ -396,7 +400,7 @@ func (c *Client) execCMD(mid MID, f func(mid MID) error) error {
 func (c *Client) do(payload []byte) ([]byte, error) {
 	c.semaphore <- struct{}{}
 	defer func() { <-c.semaphore }()
-	log.Println("SEND:", string(payload))
+	c.logger.Info().Bytes("data", payload).Msg("Send mid message")
 	if _, err := c.conn.Write(append(payload, '\x00')); err != nil {
 		return nil, err
 	}
@@ -412,7 +416,7 @@ func (c *Client) acknowledge(mid MID) error {
 	if err != nil {
 		return err
 	}
-	log.Println("SEND:", string(payload))
+	c.logger.Info().Bytes("data", payload).Msg("Send mid message")
 	if _, err := c.conn.Write(append(payload, '\x00')); err != nil {
 		return err
 	}
