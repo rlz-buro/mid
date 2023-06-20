@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	jobInfoSub                 = "0035"
 	vinSub                     = "0052"
 	tighteningSub              = "0061"
 	multiSpindelSub            = "0101"
@@ -88,6 +89,47 @@ func (c *Client) ApplicationCommunicationStop() error {
 		}
 		return nil
 	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) JobInfoSubscribe() (chan []byte, error) {
+	ch := make(chan []byte)
+	c.chans.Store(jobInfoSub, ch)
+	mid0034 := MID{
+		Header: Header{
+			Length:   20,
+			MID:      34,
+			Revision: 1,
+		},
+	}
+	if err := c.execCMD(mid0034, standartHandler); err != nil {
+		return nil, err
+	}
+	return ch, nil
+}
+
+func (c *Client) JobInfoAcknowledge() error {
+	mid0036 := MID{
+		Header: Header{
+			Length:   20,
+			MID:      36,
+			Revision: 1,
+		},
+	}
+	return c.acknowledge(mid0036)
+}
+
+func (c *Client) JobInfoUnsubscribe() error {
+	mid0037 := MID{
+		Header: Header{
+			Length:   20,
+			MID:      37,
+			Revision: 1,
+		},
+	}
+	if err := c.execCMD(mid0037, standartHandler); err != nil {
 		return err
 	}
 	return nil
@@ -309,23 +351,24 @@ func (c *Client) read() {
 			if len(data) < 20 {
 				return
 			}
-			key := string(data[4:8])
-			switch key {
-			case vinSub,
-				tighteningSub,
-				multiSpindelSub,
-				powerMACSTighteningSub,
-				powerMACSTighteningBoltSub:
-				go func() {
+			go func(key string) {
+				switch key {
+				case
+					jobInfoSub,
+					vinSub,
+					tighteningSub,
+					multiSpindelSub,
+					powerMACSTighteningSub,
+					powerMACSTighteningBoltSub:
 					v, _ := c.chans.Load(key)
 					ch, ok := v.(chan []byte)
 					if ok {
 						ch <- data
 					}
-				}()
-			default:
-				c.feedback <- data
-			}
+				default:
+					c.feedback <- data
+				}
+			}(string(data[4:8]))
 		}
 	}
 }
