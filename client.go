@@ -20,7 +20,7 @@ const (
 
 type Client struct {
 	conn      net.Conn
-	feedback  chan []byte
+	feedback  *Publisher
 	chans     sync.Map
 	semaphore chan struct{}
 	done      chan struct{}
@@ -42,7 +42,7 @@ func NewClient(host string, port string, logger zerolog.Logger) (*Client, error)
 	}
 	cln := &Client{
 		conn:      conn,
-		feedback:  make(chan []byte),
+		feedback:  NewPublisher(),
 		chans:     sync.Map{},
 		semaphore: make(chan struct{}, 1),
 		done:      make(chan struct{}),
@@ -97,9 +97,9 @@ func (c *Client) ApplicationCommunicationStop() error {
 	return nil
 }
 
-func (c *Client) JobInfoSubscribe() (chan []byte, error) {
-	ch := make(chan []byte)
-	c.chans.Store(jobInfoSub, ch)
+func (c *Client) JobInfoSubscribe() (<-chan []byte, error) {
+	p := NewPublisher()
+	c.chans.Store(jobInfoSub, p)
 	mid0034 := MID{
 		Header: Header{
 			Length:   20,
@@ -110,7 +110,7 @@ func (c *Client) JobInfoSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0034, standartHandler); err != nil {
 		return nil, err
 	}
-	return ch, nil
+	return p.Read(), nil
 }
 
 func (c *Client) JobInfoAcknowledge() error {
@@ -138,9 +138,9 @@ func (c *Client) JobInfoUnsubscribe() error {
 	return nil
 }
 
-func (c *Client) VehicleIDNumberSubscribe() (chan []byte, error) {
-	ch := make(chan []byte)
-	c.chans.Store(vinSub, ch)
+func (c *Client) VehicleIDNumberSubscribe() (<-chan []byte, error) {
+	p := NewPublisher()
+	c.chans.Store(vinSub, p)
 	mid0051 := MID{
 		Header: Header{
 			Length:   20,
@@ -151,7 +151,7 @@ func (c *Client) VehicleIDNumberSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0051, standartHandler); err != nil {
 		return nil, err
 	}
-	return ch, nil
+	return p.Read(), nil
 }
 
 func (c *Client) VehicleIDNumberAcknowledge() error {
@@ -179,9 +179,9 @@ func (c *Client) VehicleIDNumberUnsubscribe() error {
 	return nil
 }
 
-func (c *Client) LastTighteningResultDataSubscribe() (chan []byte, error) {
-	ch := make(chan []byte)
-	c.chans.Store(tighteningSub, ch)
+func (c *Client) LastTighteningResultDataSubscribe() (<-chan []byte, error) {
+	p := NewPublisher()
+	c.chans.Store(tighteningSub, p)
 	mid0060 := MID{
 		Header: Header{
 			Length:   20,
@@ -192,7 +192,7 @@ func (c *Client) LastTighteningResultDataSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0060, standartHandler); err != nil {
 		return nil, err
 	}
-	return ch, nil
+	return p.Read(), nil
 }
 
 func (c *Client) LastTighteningResultDataAcknowledge() error {
@@ -220,9 +220,9 @@ func (c *Client) LastTighteningResultDataUnsubscribe() error {
 	return nil
 }
 
-func (c *Client) MultiSpindleResultSubscribe() (chan []byte, error) {
-	ch := make(chan []byte)
-	c.chans.Store(multiSpindelSub, ch)
+func (c *Client) MultiSpindleResultSubscribe() (<-chan []byte, error) {
+	p := NewPublisher()
+	c.chans.Store(multiSpindelSub, p)
 	mid0100 := MID{
 		Header: Header{
 			Length:   20,
@@ -233,7 +233,7 @@ func (c *Client) MultiSpindleResultSubscribe() (chan []byte, error) {
 	if err := c.execCMD(mid0100, standartHandler); err != nil {
 		return nil, err
 	}
-	return ch, nil
+	return p.Read(), nil
 }
 
 func (c *Client) MultiSpindleResultAcknowledge() error {
@@ -261,10 +261,10 @@ func (c *Client) MultiSpindleResultUnsubscribe() error {
 	return nil
 }
 
-func (c *Client) LastPowerMACSTighteningResultDataSubscribe() (chan []byte, error) {
-	ch := make(chan []byte)
-	c.chans.Store(powerMACSTighteningSub, ch)
-	c.chans.Store(powerMACSTighteningBoltSub, ch)
+func (c *Client) LastPowerMACSTighteningResultDataSubscribe() (<-chan []byte, error) {
+	p := NewPublisher()
+	c.chans.Store(powerMACSTighteningSub, p)
+	c.chans.Store(powerMACSTighteningBoltSub, p)
 	mid0105 := MID{
 		Header: Header{
 			Length:   20,
@@ -275,7 +275,7 @@ func (c *Client) LastPowerMACSTighteningResultDataSubscribe() (chan []byte, erro
 	if err := c.execCMD(mid0105, standartHandler); err != nil {
 		return nil, err
 	}
-	return ch, nil
+	return p.Read(), nil
 }
 
 func (c *Client) LastPowerMACSTighteningResultDataAcknowledge(withBoltData bool) error {
@@ -328,16 +328,19 @@ func (c *Client) KeepAliveMessage() error {
 
 func (c *Client) read() {
 	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error().Interface("panic", r).Msg("Recover from panic")
+			return
+		}
 		c.chans.Range(func(key, value any) bool {
-			v, _ := c.chans.Load(key)
-			ch, ok := v.(chan []byte)
+			p, ok := value.(*Publisher)
 			if ok {
-				close(ch)
+				p.Close()
 				c.chans.Delete(key)
 			}
 			return true
 		})
-		close(c.feedback)
+		c.feedback.Close()
 		c.conn.Close()
 	}()
 	for {
@@ -370,7 +373,7 @@ func (c *Client) read() {
 						ch <- data
 					}
 				default:
-					c.feedback <- data
+					c.feedback.Write(data)
 				}
 			}(string(data[4:8]))
 		}
@@ -404,7 +407,7 @@ func (c *Client) do(payload []byte) ([]byte, error) {
 	if _, err := c.conn.Write(append(payload, '\x00')); err != nil {
 		return nil, err
 	}
-	data, ok := <-c.feedback
+	data, ok := <-c.feedback.Read()
 	if !ok {
 		return nil, fmt.Errorf("error feedback")
 	}
