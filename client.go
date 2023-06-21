@@ -368,9 +368,9 @@ func (c *Client) read() {
 					powerMACSTighteningSub,
 					powerMACSTighteningBoltSub:
 					v, _ := c.chans.Load(key)
-					ch, ok := v.(chan []byte)
+					p, ok := v.(*Publisher)
 					if ok {
-						ch <- data
+						p.Write(data)
 					}
 				default:
 					c.feedback.Write(data)

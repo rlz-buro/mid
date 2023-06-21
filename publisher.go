@@ -8,6 +8,7 @@ type Publisher struct {
 	ch   chan []byte
 	done chan struct{}
 	wg   sync.WaitGroup
+	once sync.Once
 }
 
 func NewPublisher() *Publisher {
@@ -15,6 +16,7 @@ func NewPublisher() *Publisher {
 		ch:   make(chan []byte),
 		done: make(chan struct{}),
 		wg:   sync.WaitGroup{},
+		once: sync.Once{},
 	}
 }
 
@@ -32,11 +34,13 @@ func (p *Publisher) Write(data []byte) {
 }
 
 func (p *Publisher) Close() {
-	close(p.done)
-	go func() {
-		for range p.ch {
-		}
-	}()
-	p.wg.Wait()
-	close(p.ch)
+	p.once.Do(func() {
+		close(p.done)
+		go func() {
+			for range p.ch {
+			}
+		}()
+		p.wg.Wait()
+		close(p.ch)
+	})
 }
