@@ -3,8 +3,9 @@ package mid_test
 import (
 	"testing"
 
-	"github.com/rlz-buro/mid"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/rlz-buro/mid"
 )
 
 type MIDTestSuite struct {
