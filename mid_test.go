@@ -3,6 +3,7 @@ package mid_test
 import (
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/rlz-buro/mid"
@@ -39,4 +40,13 @@ func (suite *MIDTestSuite) TestMarshal() {
 	suite.NoError(err)
 	suite.Len(raw, len(data))
 	suite.Equal(data, raw)
+}
+
+func (suite *MIDTestSuite) TestUnmarshal101() {
+	data := []byte("02100101   0        01020286132552$L604117         030004004050000060000070080026000900340010      11     12     1300003142020-02-02:16:43:38152020-06-09:09:56:30160805217118050111003088100034060211003007100045")
+
+	mid101 := mid.MID0101REV001{}
+	err := mid.Unmarshal(data, &mid101)
+	suite.NoError(err)
+	spew.Dump(mid101)
 }

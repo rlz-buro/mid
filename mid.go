@@ -7,7 +7,11 @@ import (
 	"strings"
 )
 
-const midTagName = "mid"
+const (
+	midTag      = "mid"
+	midLenTag   = "midLen"
+	midCountTag = "midCount"
+)
 
 type MID struct {
 	Header Header
@@ -62,7 +66,7 @@ func Marshal(v any) ([]byte, error) {
 	rt := reflect.TypeOf(v).Elem()
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
-		tag := field.Tag.Get(midTagName)
+		tag := field.Tag.Get(midTag)
 		s, e, err := parseTag(tag)
 		if err != nil {
 			return nil, fmt.Errorf("invalid mid tag: %w", err)
@@ -104,37 +108,63 @@ func UnmarshalMID(data []byte, v *MID) error {
 func Unmarshal(data []byte, v any) error {
 	rv := reflect.ValueOf(v).Elem()
 	rt := reflect.TypeOf(v).Elem()
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		tag := field.Tag.Get(midTagName)
-		s, e, err := parseTag(tag)
-		if err != nil {
-			return fmt.Errorf("invalid mid tag %q: %w", tag, err)
-		}
-		if s < 1 || e > len(data)+1 {
-			return fmt.Errorf("mid values should be %d <= i <= %d: start - %d end - %d", 1, len(data)+1, s, e)
-		}
-		token := data[s-1 : e]
-		if string(token) == strings.Repeat(" ", len(token)) {
-			continue
-		}
-		switch field.Type.Kind() {
-		case reflect.Int:
-			val, err := strconv.Atoi(strings.TrimSpace(string(token)))
+	for idx := 0; idx < rt.NumField(); idx++ {
+		field := rt.Field(idx)
+		midTagVal := field.Tag.Get(midTag)
+		midLenTagVal := field.Tag.Get(midLenTag)
+		midCountTagVal := field.Tag.Get(midCountTag)
+		fmt.Println(midTagVal, midLenTagVal, midCountTagVal)
+		fmt.Println(field.Name)
+		if len(midTagVal) > 0 {
+			s, e, err := parseTag(midTagVal)
 			if err != nil {
-				return fmt.Errorf("invalid data token %q: %w", string(token), err)
+				return fmt.Errorf("invalid mid tag %q: %w", midTagVal, err)
 			}
-			rv.Field(i).SetInt(int64(val))
-		case reflect.Bool:
-			val, err := strconv.Atoi(string(token))
-			if err != nil {
-				return fmt.Errorf("invalid data token %q: %w", string(token), err)
+			if s < 1 || e > len(data)+1 {
+				return fmt.Errorf("mid values should be %d <= i <= %d: start - %d end - %d", 1, len(data)+1, s, e)
 			}
-			rv.Field(i).SetBool(val != 0)
-		case reflect.String:
-			rv.Field(i).SetString(string(token))
-		default:
-			return fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+			token := data[s-1 : e]
+			if string(token) == strings.Repeat(" ", len(token)) {
+				continue
+			}
+			switch field.Type.Kind() {
+			case reflect.Int:
+				val, err := strconv.Atoi(strings.TrimSpace(string(token)))
+				if err != nil {
+					return fmt.Errorf("invalid data token %q: %w", string(token), err)
+				}
+				rv.Field(idx).SetInt(int64(val))
+			case reflect.Bool:
+				val, err := strconv.Atoi(string(token))
+				if err != nil {
+					return fmt.Errorf("invalid data token %q: %w", string(token), err)
+				}
+				rv.Field(idx).SetBool(val != 0)
+			case reflect.String:
+				rv.Field(idx).SetString(string(token))
+			default:
+				return fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+			}
+		}
+		if len(midLenTagVal) > 0 && len(midCountTagVal) > 0 {
+			switch field.Type.Kind() {
+			case reflect.Slice:
+				s := rv.Field(idx)
+				end := 175
+				l := 18
+				for i := 0; i < 2; i++ {
+					e := reflect.New(rt.Field(idx).Type.Elem()).Interface()
+					if err := Unmarshal(data[end-1:end+l-1], e); err != nil {
+						return fmt.Errorf("failed to unmarshal repeated fields: %w", err)
+					}
+					end = end + l
+					fmt.Println(end)
+					s = reflect.Append(s, reflect.ValueOf(e).Elem())
+				}
+				rv.Field(idx).Set(s)
+			default:
+				return fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+			}
 		}
 	}
 	return nil
