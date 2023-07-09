@@ -16,80 +16,70 @@ type MID0106REV001 struct {
 	// The total number of messages needed to send all Bolt data for all Bolts.
 	// The rest of the messages are of type MID 0107 Last PowerMACS tightening result Bolt data, once for each Bolt.
 	// They are only sent on request from the integrator. 2 ASCII digits, range 00-99.
-	TotalNoOfMessages int
+	TotalNoOfMessages int `mid:"23-24" midPos:"01"`
 	// This parameter is always 01 as this is the first message.
-	MessageNumber int
+	MessageNumber int `mid:"27-28" midPos:"02"`
 	// The Data No system is a unique ID for each tightening result within the system. 10 ASCII digits, max value are 4294967295.
-	DataNoSystem int
+	DataNoSystem int `mid:"31-40" midPos:"03"`
 	// The station number within the PowerMACS system. 2 ASCII digits, range 01-15.
-	StationNo int
+	StationNo int `mid:"43-44" midPos:"04"`
 	// The station name is 20 bytes long and is specified by 20 ASCII characters.
-	StationName string
+	StationName string `mid:"47-66" midPos:"05"`
 	// Cycle start time for each tightening sent to the control station.
 	// The time is 19 byte long and is specified by 19 ASCII characters (YYYY-MM-DD:HH:MM:SS)
-	Time string
+	Time string `mid:"69-87" midPos:"06"`
 	// The mode number used for the tightening. 2 ASCII digits, range 01-50. If undefined, empty spaces are sent.
-	ModeNo int
+	ModeNo int `mid:"90-91" midPos:"07"`
 	// The name of the mode used for the tightening. Specified by 20 ASCII characters. If undefined, empty spaces are sent.
-	ModeName string
+	ModeName string `mid:"94-113" midPos:"08"`
 	// One byte long and is specified by one ASCII digit (‘0’ or ‘1’). 0=tightening NOK, 1=tightening OK.
-	SimpleStatus int
+	SimpleStatus int `mid:"116" midPos:"09"`
 	// The status of the tightening, specified by one ASCII digit. 0=OK, 1=OKR, 2=NOK, 3=TERMNOK.
-	PMStatus int
+	PMStatus int `mid:"119" midPos:"10"`
 	// The Wp. Id is 40 bytes long and is specified by 40 ASCII characters. If undefined, empty spaces are sent.
-	WpId string
+	WpId string `mid:"122-161" midPos:"11"`
 	// The total number of Bolts in the tightening, 2 ASCII digits.
 	// The Bolt part in this message (indicated with double table border) is repeated Number of Bolt times.
 	// The parameter numbers (13- 22) are also repeated.
-	NumberOfBolts int `mid:"164-165"`
-	BoltData      []struct {
-		// The ordinal Bolt number, the Bolts in the station are always numbered from 01 to 50. 2 ASCII digits.
-		OrdinalBoltNumber int `mid:"168-169"`
-		// Specified by one ASCII digit (‘0’ or ‘1’). 0=tightening NOK, 1=tightening OK.
-		SimpleBoltStatus int `mid:"172"`
-		// Torque status of each Bolt, specified by one ASCII digit 0=Bolt T Low
-		// 1=Bolt T OK
-		// 2=Bolt T High
-		// If undefined, empty spaces are sent.
-		TorqueStatus int `mid:"175"`
-		// Angle status of each Bolt, specified by one ASCII digit 0=Bolt A Low
-		// 1=Bolt A OK
-		// 2=Bolt A High
-		// If undefined, empty spaces are sent.
-		AngleStatus int `mid:"178"`
-		// Sent as 7 ASCII digits formatted as a float.
-		// The value is sent with 4 decimal places, for example 99.9999 or -9.9999.
-		// If the value is larger than 99 the needed number of decimals are removed to fit the integer part,
-		// i.e. 12345.123 is sent as “12345.1”.
-		// The unit is Nm. If undefined, empty spaces are sent.
-		BoltT float64 `mid:"181-187"`
-		// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
-		// The unit is degrees. If undefined, empty spaces are sent.
-		BoltA float64 `mid:"190-196"`
-		// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
-		// The unit is Nm. If undefined, empty spaces are sent.
-		BoltTHighLimit float64 `mid:"199-205"`
-		// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
-		// The unit is Nm. If undefined, empty spaces are sent.
-		BoltTLowLimit float64 `mid:"208-214"`
-		// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
-		// The unit is degrees. If undefined, empty spaces are sent.
-		BoltAHighLimit float64 `mid:"217-223"`
-		// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
-		// The unit is degrees. If undefined, empty spaces are sent.
-		BoltALowLimit float64 `mid:"226-232"`
-	}
+	NumberOfBolts int        `mid:"164-165" midPos:"12"`
+	BoltData      []BoltData `midCount:"164-165"`
+	// TODO: add special values
+}
 
-	// _fieldOrder01 uint8 // 21-22 01
-	// _fieldOrder02 uint8 // 25-26 02
-	// _fieldOrder03 uint8 // 29-30 03
-	// _fieldOrder04 uint8 // 41-42 04
-	// _fieldOrder05 uint8 // 45-46 05
-	// _fieldOrder06 uint8 // 67-68 06
-	// _fieldOrder07 uint8 // 88-89 07
-	// _fieldOrder08 uint8 // 92-93 08
-	// _fieldOrder09 uint8 // 114-115 09
-	// _fieldOrder10 uint8 // 117-118 10
-	// _fieldOrder11 uint8 // 120-121 11
-	// _fieldOrder12 uint8 // 162-163 12
+type BoltData struct {
+	// The ordinal Bolt number, the Bolts in the station are always numbered from 01 to 50. 2 ASCII digits.
+	OrdinalBoltNumber int `mid:"+2" midPos:"13"`
+	// Specified by one ASCII digit (‘0’ or ‘1’). 0=tightening NOK, 1=tightening OK.
+	SimpleBoltStatus int `mid:"+1" midPos:"14"`
+	// Torque status of each Bolt, specified by one ASCII digit 0=Bolt T Low
+	// 1=Bolt T OK
+	// 2=Bolt T High
+	// If undefined, empty spaces are sent.
+	TorqueStatus int `mid:"+1" midPos:"15"`
+	// Angle status of each Bolt, specified by one ASCII digit 0=Bolt A Low
+	// 1=Bolt A OK
+	// 2=Bolt A High
+	// If undefined, empty spaces are sent.
+	AngleStatus int `mid:"+1" midPos:"16"`
+	// Sent as 7 ASCII digits formatted as a float.
+	// The value is sent with 4 decimal places, for example 99.9999 or -9.9999.
+	// If the value is larger than 99 the needed number of decimals are removed to fit the integer part,
+	// i.e. 12345.123 is sent as “12345.1”.
+	// The unit is Nm. If undefined, empty spaces are sent.
+	BoltT float64 `mid:"+7" midPos:"17"`
+	// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
+	// The unit is degrees. If undefined, empty spaces are sent.
+	BoltA float64 `mid:"+7" midPos:"18"`
+	// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
+	// The unit is Nm. If undefined, empty spaces are sent.
+	BoltTHighLimit float64 `mid:"+7" midPos:"19"`
+	// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
+	// The unit is Nm. If undefined, empty spaces are sent.
+	BoltTLowLimit float64 `mid:"+7" midPos:"20"`
+	// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
+	// The unit is degrees. If undefined, empty spaces are sent.
+	BoltAHighLimit float64 `mid:"+7" midPos:"21"`
+	// Sent as 7 ASCII digits, formatted as a float, see description for Bolt T.
+	// The unit is degrees. If undefined, empty spaces are sent.
+	BoltALowLimit float64 `mid:"+7" midPos:"22"`
 }

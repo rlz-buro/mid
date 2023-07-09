@@ -9,8 +9,8 @@ import (
 
 const (
 	midTag      = "mid"
-	midLenTag   = "midLen"
 	midCountTag = "midCount"
+	midPosTag   = "midPos"
 )
 
 type MID struct {
@@ -67,7 +67,7 @@ func Marshal(v any) ([]byte, error) {
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
 		tag := field.Tag.Get(midTag)
-		s, e, err := parseTag(tag)
+		s, e, err := parseTag(tag, 0)
 		if err != nil {
 			return nil, fmt.Errorf("invalid mid tag: %w", err)
 		}
@@ -106,76 +106,121 @@ func UnmarshalMID(data []byte, v *MID) error {
 }
 
 func Unmarshal(data []byte, v any) error {
-	rv := reflect.ValueOf(v).Elem()
-	rt := reflect.TypeOf(v).Elem()
-	for idx := 0; idx < rt.NumField(); idx++ {
-		field := rt.Field(idx)
-		midTagVal := field.Tag.Get(midTag)
-		midLenTagVal := field.Tag.Get(midLenTag)
-		midCountTagVal := field.Tag.Get(midCountTag)
-		fmt.Println(midTagVal, midLenTagVal, midCountTagVal)
-		fmt.Println(field.Name)
-		if len(midTagVal) > 0 {
-			s, e, err := parseTag(midTagVal)
-			if err != nil {
-				return fmt.Errorf("invalid mid tag %q: %w", midTagVal, err)
-			}
-			if s < 1 || e > len(data)+1 {
-				return fmt.Errorf("mid values should be %d <= i <= %d: start - %d end - %d", 1, len(data)+1, s, e)
-			}
-			token := data[s-1 : e]
-			if string(token) == strings.Repeat(" ", len(token)) {
-				continue
-			}
-			switch field.Type.Kind() {
-			case reflect.Int:
-				val, err := strconv.Atoi(strings.TrimSpace(string(token)))
+	var unmarshal func(data []byte, v any, end int) (int, error)
+	unmarshal = func(data []byte, v any, end int) (int, error) {
+		rv := reflect.ValueOf(v).Elem()
+		rt := reflect.TypeOf(v).Elem()
+		for idx := 0; idx < rt.NumField(); idx++ {
+			field := rt.Field(idx)
+			midTagVal := field.Tag.Get(midTag)
+			midCountTagVal := field.Tag.Get(midCountTag)
+			midPosTagVal := field.Tag.Get(midPosTag)
+			fmt.Println("midTagVal", midTagVal, "midCountTagVal", midCountTagVal, "midPosTagVal", midPosTagVal)
+			if len(midTagVal) > 0 {
+				s, e, err := parseTag(midTagVal, end)
 				if err != nil {
-					return fmt.Errorf("invalid data token %q: %w", string(token), err)
+					return 0, fmt.Errorf("invalid mid tag %q: %w", midTagVal, err)
 				}
-				rv.Field(idx).SetInt(int64(val))
-			case reflect.Bool:
-				val, err := strconv.Atoi(string(token))
-				if err != nil {
-					return fmt.Errorf("invalid data token %q: %w", string(token), err)
-				}
-				rv.Field(idx).SetBool(val != 0)
-			case reflect.String:
-				rv.Field(idx).SetString(string(token))
-			default:
-				return fmt.Errorf("%q type is not supported", field.Type.Kind().String())
-			}
-		}
-		if len(midLenTagVal) > 0 && len(midCountTagVal) > 0 {
-			switch field.Type.Kind() {
-			case reflect.Slice:
-				s := rv.Field(idx)
-				end := 175
-				l := 18
-				for i := 0; i < 2; i++ {
-					e := reflect.New(rt.Field(idx).Type.Elem()).Interface()
-					if err := Unmarshal(data[end-1:end+l-1], e); err != nil {
-						return fmt.Errorf("failed to unmarshal repeated fields: %w", err)
+				if len(midPosTagVal) > 0 {
+					fmt.Println("BEFORE", "start", s, "end", e)
+					if strings.HasPrefix(midTagVal, "+") {
+						s += 2
+						e += 2
 					}
-					end = end + l
-					fmt.Println(end)
-					s = reflect.Append(s, reflect.ValueOf(e).Elem())
+					fmt.Println("AFTER", "start", s, "end", e)
+					fmt.Println("actual", string(data[s-3:s-1]))
+					positionVal, err := strconv.Atoi(string(data[s-3 : s-1]))
+					if err != nil {
+						return 0, fmt.Errorf("invalid mid position value %q: %w", midPosTagVal, err)
+					}
+					positionExpectedVal, err := strconv.Atoi(midPosTagVal)
+					if err != nil {
+						return 0, fmt.Errorf("invalid expected mid position value %q: %w", midPosTagVal, err)
+					}
+					fmt.Println(positionVal, positionExpectedVal)
+					if positionVal != positionExpectedVal {
+						return 0, fmt.Errorf("position %d is not equal expected %d", positionVal, positionExpectedVal)
+					}
 				}
-				rv.Field(idx).Set(s)
-			default:
-				return fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+				if s < 1 || e > len(data)+1 {
+					return 0, fmt.Errorf("mid values should be %d <= i <= %d: start - %d end - %d", 1, len(data)+1, s, e)
+				}
+				token := data[s-1 : e]
+				if string(token) == strings.Repeat(" ", len(token)) {
+					end = e + 1
+					continue
+				}
+				switch field.Type.Kind() {
+				case reflect.Int:
+					val, err := strconv.Atoi(strings.TrimSpace(string(token)))
+					if err != nil {
+						return 0, fmt.Errorf("invalid data token %q: %w", string(token), err)
+					}
+					rv.Field(idx).SetInt(int64(val))
+				case reflect.Bool:
+					val, err := strconv.Atoi(string(token))
+					if err != nil {
+						return 0, fmt.Errorf("invalid data token %q: %w", string(token), err)
+					}
+					rv.Field(idx).SetBool(val != 0)
+				case reflect.String:
+					rv.Field(idx).SetString(string(token))
+				case reflect.Float64:
+					val, err := strconv.ParseFloat(string(token), 64)
+					if err != nil {
+						return 0, fmt.Errorf("invalid data token %q: %w", string(token), err)
+					}
+					rv.Field(idx).SetFloat(val)
+				default:
+					return 0, fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+				}
+				end = e + 1
+				fmt.Println("END!!!!", end)
+			}
+			if len(midCountTagVal) > 0 {
+				switch field.Type.Kind() {
+				case reflect.Slice:
+					s := rv.Field(idx)
+					for i := 0; i < 2; i++ {
+						elem := reflect.New(rt.Field(idx).Type.Elem()).Interface()
+						e, err := unmarshal(data, elem, end)
+						if err != nil {
+							return 0, fmt.Errorf("failed to unmarshal repeated fields: %w", err)
+						}
+						end = e
+						s = reflect.Append(s, reflect.ValueOf(elem).Elem())
+					}
+					rv.Field(idx).Set(s)
+				default:
+					return 0, fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+				}
 			}
 		}
+		return end, nil
+	}
+	end := 1
+	if _, err := unmarshal(data, v, end); err != nil {
+		return fmt.Errorf("failed to unmarshal mid: %w", err)
 	}
 	return nil
 }
 
-func parseTag(tag string) (int, int, error) {
+func parseTag(tag string, e int) (int, int, error) {
 	var (
 		start int
 		end   int
 		err   error
 	)
+	if strings.HasPrefix(tag, "+") {
+		tag = strings.TrimPrefix(tag, "+")
+		add, err := strconv.Atoi(tag)
+		if err != nil {
+			return 0, 0, err
+		}
+		start = e
+		end = start + add - 1
+		return start, end, nil
+	}
 	tokens := strings.Split(tag, "-")
 	switch len(tokens) {
 	case 1:
