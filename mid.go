@@ -115,20 +115,16 @@ func Unmarshal(data []byte, v any) error {
 			midTagVal := field.Tag.Get(midTag)
 			midCountTagVal := field.Tag.Get(midCountTag)
 			midPosTagVal := field.Tag.Get(midPosTag)
-			fmt.Println("midTagVal", midTagVal, "midCountTagVal", midCountTagVal, "midPosTagVal", midPosTagVal)
 			if len(midTagVal) > 0 {
 				s, e, err := parseTag(midTagVal, end)
 				if err != nil {
 					return 0, fmt.Errorf("invalid mid tag %q: %w", midTagVal, err)
 				}
 				if len(midPosTagVal) > 0 {
-					fmt.Println("BEFORE", "start", s, "end", e)
 					if strings.HasPrefix(midTagVal, "+") {
 						s += 2
 						e += 2
 					}
-					fmt.Println("AFTER", "start", s, "end", e)
-					fmt.Println("actual", string(data[s-3:s-1]))
 					positionVal, err := strconv.Atoi(string(data[s-3 : s-1]))
 					if err != nil {
 						return 0, fmt.Errorf("invalid mid position value %q: %w", midPosTagVal, err)
@@ -137,7 +133,6 @@ func Unmarshal(data []byte, v any) error {
 					if err != nil {
 						return 0, fmt.Errorf("invalid expected mid position value %q: %w", midPosTagVal, err)
 					}
-					fmt.Println(positionVal, positionExpectedVal)
 					if positionVal != positionExpectedVal {
 						return 0, fmt.Errorf("position %d is not equal expected %d", positionVal, positionExpectedVal)
 					}
@@ -175,25 +170,32 @@ func Unmarshal(data []byte, v any) error {
 					return 0, fmt.Errorf("%q type is not supported", field.Type.Kind().String())
 				}
 				end = e + 1
-				fmt.Println("END!!!!", end)
 			}
-			if len(midCountTagVal) > 0 {
-				switch field.Type.Kind() {
-				case reflect.Slice:
-					s := rv.Field(idx)
-					for i := 0; i < 2; i++ {
-						elem := reflect.New(rt.Field(idx).Type.Elem()).Interface()
-						e, err := unmarshal(data, elem, end)
-						if err != nil {
-							return 0, fmt.Errorf("failed to unmarshal repeated fields: %w", err)
-						}
-						end = e
-						s = reflect.Append(s, reflect.ValueOf(elem).Elem())
-					}
-					rv.Field(idx).Set(s)
-				default:
-					return 0, fmt.Errorf("%q type is not supported", field.Type.Kind().String())
+			if len(midCountTagVal) > 0 && field.Type.Kind() == reflect.Slice {
+				s, e, err := parseTag(midCountTagVal, end)
+				if err != nil {
+					return 0, fmt.Errorf("invalid mid tag %q: %w", midTagVal, err)
 				}
+				if s < 1 || e > len(data)+1 {
+					return 0, fmt.Errorf("mid values should be %d <= i <= %d: start - %d end - %d", 1, len(data)+1, s, e)
+				}
+				token := data[s-1 : e]
+				num, err := strconv.Atoi(strings.TrimSpace(string(token)))
+				if err != nil {
+					return 0, fmt.Errorf("invalid data token %q: %w", string(token), err)
+				}
+				arr := rv.Field(idx)
+				for i := 0; i < num; i++ {
+					elem := reflect.New(rt.Field(idx).Type.Elem()).Interface()
+					e, err := unmarshal(data, elem, end)
+					if err != nil {
+						return 0, fmt.Errorf("failed to unmarshal repeated fields: %w", err)
+					}
+					end = e
+					arr = reflect.Append(arr, reflect.ValueOf(elem).Elem())
+				}
+				rv.Field(idx).Set(arr)
+
 			}
 		}
 		return end, nil
