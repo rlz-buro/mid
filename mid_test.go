@@ -57,3 +57,11 @@ func (suite *MIDTestSuite) TestUnmarshal106() {
 	suite.NoError(err)
 	spew.Dump(mid106)
 }
+
+func (suite *MIDTestSuite) TestUnmarshal107() {
+	data := []byte("02660107            010302020300005192190401052020-02-17:12:03:4806000107Bolt 01             0830Nm                092100000000000000000000000000327680000000064000000000011    1201Spindle No          I 0000001130001411501Program Time        T 192020-02-02:16:43:3600")
+	mid107 := mid.MID0107REV001{}
+	err := mid.Unmarshal(data, &mid107)
+	suite.NoError(err)
+	spew.Dump(mid107)
+}

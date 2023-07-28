@@ -26,22 +26,23 @@ type MID0107REV001 struct {
 	DataNoSystem int `mid:"31-40" midPos:"03"`
 	// The station number within the Power MACS system. 2 ASCII digits. Range 01-15.
 	StationNo int `mid:"43-44" midPos:"04"`
+	// ATTENTION!!! Specification pdf contains mistake: time's bounds are 47-65 instead of 47-55
 	// Cycle start time for each tightening sent to the control station.
 	// The time is 19 byte long and is specified by 19 ASCII characters (YYYY-MM-DD:HH:MM:SS)
-	Time string `mid:"47-55" midPos:"05"`
+	Time string `mid:"47-65" midPos:"05"`
 	// The user defined Bolt number. 4 ASCII digits, range 0001-9999.
-	BoltNumber int `mid:"58-61" midPos:"06"`
+	BoltNumber int `mid:"68-71" midPos:"06"`
 	// The name of the Bolt. 20 ASCII characters.
-	BoltName string `mid:"64-83" midPos:"07"`
+	BoltName string `mid:"74-93" midPos:"07"`
 	// The name of the program that made the tightening, 20 ASCII characters.
-	ProgramName string `mid:"86-105" midPos:"08"`
+	ProgramName string `mid:"96-115" midPos:"08"`
 	// The status of the tightening specified by one ASCII digit.
 	// 0=OK, 1=OKR, 2=NOK, 3=TERMNOK.
-	PMStatus int `mid:"108" midPos:"09"`
+	PMStatus int `mid:"118" midPos:"09"`
 	// Error codes from the tightening. Formatted in the same way as the E1 special variable
-	Errors string `mid:"111-160" midPos:"10"`
+	Errors string `mid:"121-170" midPos:"10"`
 	// Customer specific error code. 4 ASCII characters. If undefined, empty spaces are sent.
-	CustomerErrorCode string `mid:"163-166" midPos:"11"`
+	CustomerErrorCode string `mid:"173-176" midPos:"11"`
 
 	// TODO: add other fields
 }
