@@ -51,12 +51,14 @@ type BoltData struct {
 	OrdinalBoltNumber int `mid:"+2" midPos:"13"`
 	// Specified by one ASCII digit (‘0’ or ‘1’). 0=tightening NOK, 1=tightening OK.
 	SimpleBoltStatus int `mid:"+1" midPos:"14"`
-	// Torque status of each Bolt, specified by one ASCII digit 0=Bolt T Low
+	// Torque status of each Bolt, specified by one ASCII digit
+	// 0=Bolt T Low
 	// 1=Bolt T OK
 	// 2=Bolt T High
 	// If undefined, empty spaces are sent.
 	TorqueStatus int `mid:"+1" midPos:"15"`
-	// Angle status of each Bolt, specified by one ASCII digit 0=Bolt A Low
+	// Angle status of each Bolt, specified by one ASCII digit
+	// 0=Bolt A Low
 	// 1=Bolt A OK
 	// 2=Bolt A High
 	// If undefined, empty spaces are sent.

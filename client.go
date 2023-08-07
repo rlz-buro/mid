@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -28,18 +29,20 @@ type Client struct {
 }
 
 func NewClient(host string, port string, logger zerolog.Logger) (*Client, error) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", host, port))
+	// tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", host, port))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), time.Second)
+	// conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), time.Second)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
-	if err != nil {
-		return nil, err
-	}
-	err = conn.SetKeepAlive(true)
-	if err != nil {
-		return nil, err
-	}
+	// err = conn.SetKeepAlive(true)
+	// if err != nil {
+	// 	return nil, err
+	// }
 	cln := &Client{
 		conn:      conn,
 		feedback:  NewPublisher(),
