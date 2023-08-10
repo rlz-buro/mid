@@ -360,9 +360,6 @@ func (c *Client) read() {
 				c.logger.Error().Msg("Invalid mid header lenght")
 				return
 			}
-			if string(data[4:8]) != keepAliveMsg {
-				c.logger.Info().Bytes("data", data).Msg("Receive mid message")
-			}
 			go func(key string) {
 				switch key {
 				case
@@ -408,7 +405,6 @@ func (c *Client) execCMD(mid MID, f func(mid MID) error) error {
 func (c *Client) do(payload []byte) ([]byte, error) {
 	c.semaphore <- struct{}{}
 	defer func() { <-c.semaphore }()
-	c.logger.Info().Bytes("data", payload).Msg("Send mid message")
 	if _, err := c.conn.Write(append(payload, '\x00')); err != nil {
 		return nil, err
 	}
