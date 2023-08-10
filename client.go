@@ -17,6 +17,7 @@ const (
 	multiSpindelSub            = "0101"
 	powerMACSTighteningSub     = "0106"
 	powerMACSTighteningBoltSub = "0107"
+	keepAliveMsg               = "9999"
 )
 
 type Client struct {
@@ -33,9 +34,8 @@ func NewClient(host string, port string, logger zerolog.Logger) (*Client, error)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), time.Second)
 	// conn, err := net.DialTCP("tcp", nil, tcpAddr)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), time.Second)
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), time.Second*5)
 	if err != nil {
 		return nil, err
 	}
@@ -356,10 +356,12 @@ func (c *Client) read() {
 				c.logger.Error().Err(err).Msg("Failed to read from connection")
 				return
 			}
-			c.logger.Info().Bytes("data", data).Msg("Receive mid message")
 			if len(data) < 20 {
 				c.logger.Error().Msg("Invalid mid header lenght")
 				return
+			}
+			if string(data[4:8]) != keepAliveMsg {
+				c.logger.Info().Bytes("data", data).Msg("Receive mid message")
 			}
 			go func(key string) {
 				switch key {
@@ -422,7 +424,6 @@ func (c *Client) acknowledge(mid MID) error {
 	if err != nil {
 		return err
 	}
-	c.logger.Info().Bytes("data", payload).Msg("Send mid message")
 	if _, err := c.conn.Write(append(payload, '\x00')); err != nil {
 		return err
 	}
