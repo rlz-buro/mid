@@ -3,7 +3,6 @@ package mid_test
 import (
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/rlz-buro/mid"
@@ -42,12 +41,11 @@ func (suite *MIDTestSuite) TestMarshal() {
 	suite.Equal(data, raw)
 }
 
-func (suite *MIDTestSuite) TestUnmarshal101() {
-	data := []byte("02100101   0        01020286132552$L604117         030004004050000060000070080026000900340010      11     12     1300003142020-02-02:16:43:38152020-06-09:09:56:30160805217118050111003088100034060211003007100045")
-	mid101 := mid.MID0101REV001{}
-	err := mid.Unmarshal(data, &mid101)
+func (suite *MIDTestSuite) TestUnmarshal61() {
+	data := []byte("02310061001 0000    010000020003Station P1               0486135507$6101010         050106004070004080002091101111120026001300370014003200150032081600000170000018000001900000202023-08-21:11:49:02212020-11-24:20:27:58220230003951962")
+	mid61 := mid.MID0061REV001{}
+	err := mid.Unmarshal(data, &mid61)
 	suite.NoError(err)
-	spew.Dump(mid101)
 }
 
 func (suite *MIDTestSuite) TestUnmarshal106() {
@@ -55,7 +53,6 @@ func (suite *MIDTestSuite) TestUnmarshal106() {
 	mid106 := mid.MID0106REV001{}
 	err := mid.Unmarshal(data, &mid106)
 	suite.NoError(err)
-	spew.Dump(mid106)
 }
 
 func (suite *MIDTestSuite) TestUnmarshal107() {
@@ -63,5 +60,4 @@ func (suite *MIDTestSuite) TestUnmarshal107() {
 	mid107 := mid.MID0107REV001{}
 	err := mid.Unmarshal(data, &mid107)
 	suite.NoError(err)
-	spew.Dump(mid107)
 }
