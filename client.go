@@ -29,22 +29,33 @@ type Client struct {
 	logger    zerolog.Logger
 }
 
-func NewClient(host string, port string, logger zerolog.Logger) (*Client, error) {
-	// tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", host, port))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// conn, err := net.DialTCP("tcp", nil, tcpAddr)
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%s", host, port), time.Second*5)
+type Option func(*net.Dialer)
+
+func WithTimeout(d time.Duration) Option {
+	return func(dialer *net.Dialer) {
+		dialer.Timeout = d
+	}
+}
+
+func NewClient(host string, port string, logger zerolog.Logger, opts ...Option) (*Client, error) {
+	d := net.Dialer{}
+	for _, opt := range opts {
+		opt(&d)
+	}
+	conn, err := d.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
 		return nil, err
 	}
-	// err = conn.SetKeepAlive(true)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	tcpConn, ok := conn.(*net.TCPConn)
+	if !ok {
+		return nil, fmt.Errorf("invalid connection: must be tcp")
+	}
+	err = tcpConn.SetKeepAlive(true)
+	if err != nil {
+		return nil, err
+	}
 	cln := &Client{
-		conn:      conn,
+		conn:      tcpConn,
 		feedback:  NewPublisher(),
 		chans:     sync.Map{},
 		semaphore: make(chan struct{}, 1),
