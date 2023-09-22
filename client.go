@@ -37,25 +37,21 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
-func NewClient(host string, port string, logger zerolog.Logger, opts ...Option) (*Client, error) {
-	d := net.Dialer{}
-	for _, opt := range opts {
-		opt(&d)
-	}
-	conn, err := d.Dial("tcp", fmt.Sprintf("%s:%s", host, port))
+func NewClient(host string, port string, logger zerolog.Logger) (*Client, error) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
 		return nil, err
 	}
-	tcpConn, ok := conn.(*net.TCPConn)
-	if !ok {
-		return nil, fmt.Errorf("invalid connection: must be tcp")
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		return nil, err
 	}
-	err = tcpConn.SetKeepAlive(true)
+	err = conn.SetKeepAlive(true)
 	if err != nil {
 		return nil, err
 	}
 	cln := &Client{
-		conn:      tcpConn,
+		conn:      conn,
 		feedback:  NewPublisher(),
 		chans:     sync.Map{},
 		semaphore: make(chan struct{}, 1),
