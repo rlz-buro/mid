@@ -230,6 +230,30 @@ func (c *Client) LastTighteningResultDataUnsubscribe() error {
 	return nil
 }
 
+func (c *Client) OldTighteningResultUploadRequest(tighteningID int) ([]byte, error) {
+	mid0064 := MID{
+		Header: Header{
+			Length:   30,
+			MID:      64,
+			Revision: 1,
+		},
+		Data: []byte(fmt.Sprintf("%010d", tighteningID)),
+	}
+	msg, err := c.execCMDFeedback(mid0064, func(mid MID) error {
+		if mid.Header.MID == 4 {
+			return midErr(mid)
+		}
+		if mid.Header.MID != 65 {
+			return fmt.Errorf("invalid mid: %d", mid.Header.MID)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
+}
+
 func (c *Client) MultiSpindleResultSubscribe() (<-chan []byte, error) {
 	p := NewPublisher()
 	c.chans.Store(multiSpindelSub, p)
@@ -407,6 +431,29 @@ func (c *Client) execCMD(mid MID, f func(mid MID) error) error {
 		return err
 	}
 	return f(mid)
+}
+
+func (c *Client) execCMDFeedback(mid MID, f func(mid MID) error) ([]byte, error) {
+	if f == nil {
+		return nil, fmt.Errorf("nil feedback handler func")
+	}
+	payload, err := MarshalMID(mid)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := c.do(payload)
+	if err != nil {
+		return nil, err
+	}
+	mid = MID{}
+	err = UnmarshalMID(raw, &mid)
+	if err != nil {
+		return nil, err
+	}
+	if err := f(mid); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
 func (c *Client) do(payload []byte) ([]byte, error) {
