@@ -392,6 +392,12 @@ func (c *Client) read() {
 				return
 			}
 			go func(key string) {
+				defer func() {
+					if r := recover(); r != nil {
+						c.logger.Error().Interface("panic", r).Msg("Recover from panic")
+						return
+					}
+				}()
 				switch key {
 				case
 					jobInfoSub,
